@@ -155,8 +155,9 @@ If you wish to trigger deployment directly from the GitHub Actions UI:
    .\config.cmd --url https://github.com/Manav-cp/redactiq --token <FRESH_TOKEN>
    .\run.cmd
    ```
-4. Run the **Continuous Deployment** workflow in GitHub Actions with `confirm_deployment: DEPLOY`.
-5. Once deployment completes, stop the runner (`Ctrl+C`). Never leave the runner running unattended.
+4. Test Runner Connectivity: In GitHub Actions, navigate to **Actions > Test Self-Hosted Runner Connectivity > Run workflow** to run a harmless, read-only verification.
+5. Run the **Continuous Deployment** workflow in GitHub Actions with `component: frontend` and `confirm_deployment: DEPLOY`.
+6. Once deployment completes, stop the runner (`Ctrl+C`). Never leave the runner running unattended.
 
 ---
 

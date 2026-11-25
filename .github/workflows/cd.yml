@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       component:
-        description: "Target deployment component"
+        description: "Target deployment component (Deploy frontend first to test)"
         required: true
         type: choice
-        default: "all"
+        default: "frontend"
         options:
-          - "all"
           - "frontend"
           - "backend"
+          - "all"
       confirm_deployment:
         description: "Safety gate: Type 'DEPLOY' to approve live execution"
         required: true
@@ -54,15 +54,20 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Pre-Flight Environment Validation
+        shell: powershell
         run: |
-          python -c "import boto3, sys; sys.exit(0 if boto3.__version__ else 1)"
-          echo "Self-hosted runner execution environment verified."
+          $env:PATH = "C:\Users\manav\AppData\Local\Programs\Python\Python311;C:\Users\manav\AppData\Local\Programs\Python\Python311\Scripts;C:\Program Files\Amazon\AWSCLIV2;" + $env:PATH
+          python -c "import boto3, sys; print('Using Python executable:', sys.executable); sys.exit(0 if boto3.__version__ else 1)"
+          Write-Output "Self-hosted runner execution environment verified."
 
       - name: Execute Controlled Deployment Engine
+        shell: powershell
         run: |
+          $env:PATH = "C:\Users\manav\AppData\Local\Programs\Python\Python311;C:\Users\manav\AppData\Local\Programs\Python\Python311\Scripts;C:\Program Files\Amazon\AWSCLIV2;" + $env:PATH
           python scripts/cd_deploy.py --component "${{ github.event.inputs.component }}"
 
       - name: Rollback Instructions Notice
         if: failure()
+        shell: powershell
         run: |
-          echo "::error::Deployment failed! Execute 'python scripts/rollback.py' locally to restore the previous healthy state."
+          Write-Error "Deployment encountered an issue! Execute 'python scripts/rollback.py' locally to restore the previous healthy state."

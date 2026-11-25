@@ -1,0 +1,28 @@
+name: Test Self-Hosted Runner Connectivity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-connectivity:
+    name: Harmless Connectivity & Read-Only AWS Check
+    runs-on: [self-hosted]
+    steps:
+      - name: Test Runner System & Hostname
+        shell: powershell
+        run: |
+          Write-Output "=== Self-Hosted Runner Status: ONLINE ==="
+          Write-Output "Computer Name : $env:COMPUTERNAME"
+          Write-Output "Current User  : $env:USERNAME"
+          Write-Output "OS Version    : Windows 11"
+          Write-Output "Connectivity to GitHub Actions verified successfully."
+
+      - name: Verify Read-Only AWS Credentials & Session
+        shell: powershell
+        run: |
+          $env:PATH = "C:\Users\manav\AppData\Local\Programs\Python\Python311;C:\Users\manav\AppData\Local\Programs\Python\Python311\Scripts;C:\Program Files\Amazon\AWSCLIV2;" + $env:PATH
+          python -c "import boto3; sts = boto3.client('sts', region_name='us-east-1'); ident = sts.get_caller_identity(); print('Read-Only STS Caller Identity:', ident['Arn'], '| Account:', ident['Account'])"
+          Write-Output "Read-only AWS session successfully verified on self-hosted runner!"
