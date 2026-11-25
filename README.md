@@ -21,12 +21,25 @@ redaction-platform/
 ├── infra/template.yaml           # Whole stack as CloudFormation (SAM transform)
 ├── scripts/cd_deploy.py          # Continuous Deployment engine (pre/post checks, zero delete)
 ├── scripts/rollback.py           # Automated rollback engine
+├── scripts/e2e_test.py           # End-to-end cloud verification test suite
 ├── scripts/deploy.py             # Full CloudFormation stack deployment
 ├── scripts/destroy.py            # Teardown script
 ├── .github/workflows/ci.yml      # CI: lint → test → cfn-lint → pip-audit → npm audit → build
 ├── .github/workflows/cd.yml      # CD: controlled deployment with safety gates
+├── .github/workflows/runner-test.yml # Harmless self-hosted runner connectivity test
 ├── iam-policies/                 # Least-privilege policies (for non-Learner-Lab accounts)
-├── docs/                         # ARCHITECTURE, CICD, SECURITY, SLA, COSTING
+├── docs/                         # Project Report, SLA, Guides, and Presentation Material
+│   ├── FINAL_PROJECT_REPORT.md   # Complete 43-section M.Tech Project Report (.docx, .pdf)
+│   ├── SLA.md                    # Academic Service Level Agreement (.docx, .pdf)
+│   ├── CICD.md                   # Complete CI/CD Architecture & Operations Manual
+│   ├── TEST_REPORT.md            # Empirical Unit & Live Testing Results
+│   ├── DEPLOYMENT_GUIDE.md       # Production Deployment Operations Guide
+│   ├── ROLLBACK_GUIDE.md         # Automated & Emergency Rollback Procedures
+│   ├── TROUBLESHOOTING.md        # Incident Remediation & Debugging Guide
+│   ├── FINAL_VERIFICATION.md     # Component Verification Matrix & Live Evidence
+│   ├── PRESENTATION_SCRIPT.md    # Defense Presentation Script
+│   ├── VIVA_QUESTIONS.md         # Technical Defense & Professor Viva Q&A
+│   └── LIVE_DEMO_GUIDE.md        # Step-by-Step Live Evaluator Demo Guide
 └── samples/                      # Fake invoice PDF + résumé TXT full of test PII
 ```
 

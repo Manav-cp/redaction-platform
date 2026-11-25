@@ -19,6 +19,7 @@ credentials.csv
 
 # Sensitive documents
 *.pdf
+!docs/*.pdf
 sample-test*.txt
 user-b-test.txt
 samples/
