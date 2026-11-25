@@ -378,26 +378,26 @@ report_sections = [
      None)
 ]
 
-# Write FINAL_PROJECT_REPORT.md
-md_path = DOCS / "FINAL_PROJECT_REPORT.md"
-with open(md_path, "w", encoding="utf-8") as f:
-    f.write(f"# {report_title}\n\n")
-    for title, text, table in report_sections:
-        f.write(f"## {title}\n\n")
-        if text:
-            f.write(f"{text}\n\n")
-        if table:
-            # Markdown table
-            headers = table[0]
-            f.write("| " + " | ".join(headers) + " |\n")
-            f.write("| " + " | ".join(["---"] * len(headers)) + " |\n")
-            for row in table[1:]:
-                f.write("| " + " | ".join(str(c) for c in row) + " |\n")
-            f.write("\n")
-print(f"Generated Markdown: {md_path}")
-
-create_docx_from_markdown_sections("FINAL_PROJECT_REPORT.docx", report_title, report_sections)
-create_pdf_from_markdown_sections("FINAL_PROJECT_REPORT.pdf", report_title, report_sections)
+# Note: FINAL_PROJECT_REPORT.md, .docx, and .pdf are compiled by
+# compile_report_with_screenshots.py to include all 19 empirical screenshots.
+if "--all-reports" in sys.argv:
+    md_path = DOCS / "FINAL_PROJECT_REPORT.md"
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(f"# {report_title}\n\n")
+        for title, text, table in report_sections:
+            f.write(f"## {title}\n\n")
+            if text:
+                f.write(f"{text}\n\n")
+            if table:
+                headers = table[0]
+                f.write("| " + " | ".join(headers) + " |\n")
+                f.write("| " + " | ".join(["---"] * len(headers)) + " |\n")
+                for row in table[1:]:
+                    f.write("| " + " | ".join(str(c) for c in row) + " |\n")
+                f.write("\n")
+    print(f"Generated Markdown: {md_path}")
+    create_docx_from_markdown_sections("FINAL_PROJECT_REPORT.docx", report_title, report_sections)
+    create_pdf_from_markdown_sections("FINAL_PROJECT_REPORT.pdf", report_title, report_sections)
 
 # -----------------------------------------------------------------------------
 # 2. SLA DOCUMENT CONTENT

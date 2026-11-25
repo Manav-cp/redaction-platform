@@ -41,14 +41,14 @@ def create_docx_from_markdown_sections(filename, title, sections):
     title_run = title_p.add_run(title)
     title_run.font.size = Pt(22)
     title_run.font.bold = True
-    title_run.font.color.rgb = RGBColor(26, 82, 118)
+    title_run.font.color.rgb = RGBColor(0, 0, 0)
 
     sub_p = doc.add_paragraph()
     sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     sub_run = sub_p.add_run("M.Tech Cloud Computing Final Documentation | AWS & GitHub CI/CD\nAuthor: Manav Maisuriya | Roll No: 26MCE009")
     sub_run.font.size = Pt(11)
     sub_run.font.italic = True
-    sub_run.font.color.rgb = RGBColor(100, 100, 100)
+    sub_run.font.color.rgb = RGBColor(0, 0, 0)
 
     doc.add_paragraph().paragraph_format.space_after = Pt(18)
 
@@ -56,22 +56,28 @@ def create_docx_from_markdown_sections(filename, title, sections):
         h = doc.add_heading(sec_title, level=2)
         h.paragraph_format.space_before = Pt(14)
         h.paragraph_format.space_after = Pt(6)
+        if h.runs:
+            h.runs[0].font.color.rgb = RGBColor(0, 0, 0)
 
         if sec_content:
-            p = doc.add_paragraph(sec_content)
+            p = doc.add_paragraph()
             p.paragraph_format.line_spacing = 1.15
             p.paragraph_format.space_after = Pt(8)
+            p_run = p.add_run(sec_content)
+            p_run.font.color.rgb = RGBColor(0, 0, 0)
 
         if table_data:
             table = doc.add_table(rows=len(table_data), cols=len(table_data[0]))
             table.alignment = WD_TABLE_ALIGNMENT.CENTER
-            table.style = 'Light Shading Accent 1'
+            table.style = 'Table Grid'
             for r_idx, row in enumerate(table_data):
                 for c_idx, cell in enumerate(row):
                     cell_p = table.cell(r_idx, c_idx).paragraphs[0]
                     cell_p.text = str(cell)
-                    if r_idx == 0:
-                        cell_p.runs[0].font.bold = True
+                    if cell_p.runs:
+                        cell_p.runs[0].font.color.rgb = RGBColor(0, 0, 0)
+                        if r_idx == 0:
+                            cell_p.runs[0].font.bold = True
             doc.add_paragraph().paragraph_format.space_after = Pt(10)
 
     out_path = DOCS / filename
@@ -88,13 +94,13 @@ def create_pdf_from_markdown_sections(filename, title, sections):
                             rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
 
-    # Custom styles
+    # Custom styles - Pure Black Typography
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Heading1'],
         fontSize=20,
         leading=24,
-        textColor=colors.HexColor('#1A5276'),
+        textColor=colors.black,
         alignment=1,
         spaceAfter=8
     )
@@ -103,7 +109,7 @@ def create_pdf_from_markdown_sections(filename, title, sections):
         parent=styles['Normal'],
         fontSize=10,
         leading=14,
-        textColor=colors.HexColor('#555555'),
+        textColor=colors.black,
         alignment=1,
         spaceAfter=18
     )
@@ -112,7 +118,7 @@ def create_pdf_from_markdown_sections(filename, title, sections):
         parent=styles['Heading2'],
         fontSize=13,
         leading=16,
-        textColor=colors.HexColor('#2E4053'),
+        textColor=colors.black,
         spaceBefore=12,
         spaceAfter=6,
         keepWithNext=True
@@ -122,7 +128,7 @@ def create_pdf_from_markdown_sections(filename, title, sections):
         parent=styles['Normal'],
         fontSize=9.5,
         leading=13.5,
-        textColor=colors.HexColor('#222222'),
+        textColor=colors.black,
         spaceAfter=8
     )
 
@@ -134,24 +140,23 @@ def create_pdf_from_markdown_sections(filename, title, sections):
     for sec_title, sec_content, table_data in sections:
         story.append(Paragraph(sec_title, h2_style))
         if sec_content:
-            # Replace newlines with <br/> for ReportLab Paragraph
             formatted_text = sec_content.replace("\n\n", "<br/><br/>").replace("\n", " ")
             story.append(Paragraph(formatted_text, body_style))
 
         if table_data:
             wrapped_table = []
             for row in table_data:
-                wrapped_row = [Paragraph(str(cell), ParagraphStyle('TableCell', parent=styles['Normal'], fontSize=8, leading=10)) for cell in row]
+                wrapped_row = [Paragraph(str(cell), ParagraphStyle('TableCell', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.black)) for cell in row]
                 wrapped_table.append(wrapped_row)
             
             t = Table(wrapped_table, repeatRows=1)
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EAEDED')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1A5276')),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.white),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                 ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BDC3C7')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
             ]))
             story.append(t)
             story.append(Spacer(1, 8))
