@@ -77,7 +77,7 @@ jobs:
   deploy:
     name: Deploy to AWS
     needs: test
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ false }}
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -214,3 +214,4 @@ jobs:
           echo "API Gateway unauthenticated check HTTP status: $api_code"
           [ "$api_code" = "401" ] || { echo "Expected 401 from JWT-protected API, got $api_code"; exit 1; }
           echo "Live deployment verified: $URL"
+
