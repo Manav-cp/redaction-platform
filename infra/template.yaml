@@ -1,0 +1,355 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless AI-Driven Document Processing and Sensitive Data Redaction Platform
+  (S3 + Lambda + DynamoDB + Cognito + API Gateway HTTP API + CloudWatch).
+  Built for AWS Academy Learner Lab: every Lambda uses the pre-created LabRole
+  because Learner Lab does not allow creating IAM roles.
+
+Parameters:
+  LabRoleName:
+    Type: String
+    Default: LabRole
+    Description: Existing IAM role used by all Lambda functions (Learner Lab provides LabRole)
+  UseComprehend:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Use Amazon Comprehend DetectPiiEntities in addition to regex detectors
+  MaxUploadMB:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 50
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref DocumentsTable
+        CLEAN_BUCKET: !Ref CleanBucket
+        MAX_UPLOAD_MB: !Ref MaxUploadMB
+        LOG_LEVEL: INFO
+
+Resources:
+  # ------------------------------------------------------------------ Storage
+  RawBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireRawUploads   # data minimisation: originals with PII deleted after 1 day
+            Status: Enabled
+            ExpirationInDays: 1
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [POST]
+            AllowedOrigins:
+              - http://localhost:5173
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+
+  CleanBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireRedactedOutputs
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration: {NoncurrentDays: 7}
+
+  RawBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RawBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt RawBucket.Arn, !Sub "${RawBucket.Arn}/*"]
+            Condition: {Bool: {"aws:SecureTransport": "false"}}
+
+  CleanBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CleanBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt CleanBucket.Arn, !Sub "${CleanBucket.Arn}/*"]
+            Condition: {Bool: {"aws:SecureTransport": "false"}}
+
+  # ----------------------------------------------------------------- Database
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PROVISIONED
+      ProvisionedThroughput: {ReadCapacityUnits: 5, WriteCapacityUnits: 5}
+      AttributeDefinitions:
+        - {AttributeName: userId, AttributeType: S}
+        - {AttributeName: docId, AttributeType: S}
+      KeySchema:
+        - {AttributeName: userId, KeyType: HASH}
+        - {AttributeName: docId, KeyType: RANGE}
+      PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+      SSESpecification: {SSEEnabled: true}
+
+  # ----------------------------------------------------------------- Identity
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-users
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      MfaConfiguration: "OPTIONAL"
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{Name: verified_email, Priority: 1}]
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: web-client
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      RefreshTokenValidity: 7
+      TokenValidityUnits: {IdToken: minutes, AccessToken: minutes, RefreshToken: days}
+
+  # ---------------------------------------------------------------------- API
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+              audience: [!Ref UserPoolClient]
+      CorsConfiguration:
+        AllowOrigins:
+          - http://localhost:5173
+        AllowHeaders: [Authorization, Content-Type]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../.build/api
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/${LabRoleName}
+      Handler: handler.lambda_handler
+      MemorySize: 256
+      Timeout: 10
+      Environment:
+        Variables:
+          RAW_BUCKET: !Ref RawBucket
+          URL_TTL_SECONDS: "300"
+      Events:
+        UploadUrl:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /upload-url, Method: POST}
+        ListDocs:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /documents, Method: GET}
+        GetDoc:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: "/documents/{docId}", Method: GET}
+        DeleteDoc:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: "/documents/{docId}", Method: DELETE}
+
+  # ------------------------------------------------------- Processing engine
+  ProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../.build/processor
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/${LabRoleName}
+      Handler: handler.lambda_handler
+      MemorySize: 1024
+      Timeout: 120
+      Environment:
+        Variables:
+          USE_COMPREHEND: !Ref UseComprehend
+      Events:
+        RawUpload:
+          Type: S3
+          Properties:
+            Bucket: !Ref RawBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules: [{Name: prefix, Value: uploads/}]
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApiFunction}
+      RetentionInDays: 14
+
+  ProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ProcessorFunction}
+      RetentionInDays: 14
+
+  # --------------------------------------------------------------- Monitoring
+  ProcessorErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Document processor Lambda is failing
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{Name: FunctionName, Value: !Ref ProcessorFunction}]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ProcessorThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Document processor Lambda is being throttled
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions: [{Name: FunctionName, Value: !Ref ProcessorFunction}]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ProcessorDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Processor p95 duration above 60 s
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions: [{Name: FunctionName, Value: !Ref ProcessorFunction}]
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 60000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: HTTP API returning 5xx errors
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - {Name: ApiId, Value: !Ref HttpApi}
+        - {Name: Stage, Value: $default}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ApiLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: SLO breach - API p95 latency above 350 ms
+      Namespace: AWS/ApiGateway
+      MetricName: Latency
+      Dimensions:
+        - {Name: ApiId, Value: !Ref HttpApi}
+        - {Name: Stage, Value: $default}
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 350
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${AWS::StackName}-dashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {"type":"metric","x":0,"y":0,"width":12,"height":6,
+             "properties":{"title":"Processor invocations / errors / throttles","region":"${AWS::Region}","stat":"Sum","period":300,
+               "metrics":[["AWS/Lambda","Invocations","FunctionName","${ProcessorFunction}"],
+                          [".","Errors",".","."],[".","Throttles",".","."]]}},
+            {"type":"metric","x":12,"y":0,"width":12,"height":6,
+             "properties":{"title":"Processor duration (ms)","region":"${AWS::Region}","period":300,
+               "metrics":[["AWS/Lambda","Duration","FunctionName","${ProcessorFunction}",{"stat":"Average"}],
+                          ["...",{"stat":"p95"}]]}},
+            {"type":"metric","x":0,"y":6,"width":12,"height":6,
+             "properties":{"title":"API requests and errors","region":"${AWS::Region}","stat":"Sum","period":300,
+               "metrics":[["AWS/ApiGateway","Count","ApiId","${HttpApi}","Stage","$default"],
+                          [".","4xx",".",".",".","."],[".","5xx",".",".",".","."]]}},
+            {"type":"metric","x":12,"y":6,"width":12,"height":6,
+             "properties":{"title":"API latency p95 (SLO 350 ms)","region":"${AWS::Region}","stat":"p95","period":300,
+               "metrics":[["AWS/ApiGateway","Latency","ApiId","${HttpApi}","Stage","$default"]],
+               "annotations":{"horizontal":[{"value":350,"label":"SLO"}]}}}
+          ]
+        }
+
+Outputs:
+  ApiUrl:
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  RawBucketName:
+    Value: !Ref RawBucket
+  CleanBucketName:
+    Value: !Ref CleanBucket
+  TableName:
+    Value: !Ref DocumentsTable
+  Region:
+    Value: !Ref "AWS::Region"

@@ -1,0 +1,46 @@
+.build/
+node_modules/
+frontend/dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+.env
+.DS_Store
+
+# Credentials and secrets
+.env.*
+!.env.example
+.aws/
+credentials
+credentials.csv
+*.pem
+*.key
+
+# Sensitive documents
+*.pdf
+sample-test*.txt
+user-b-test.txt
+samples/
+uploads/
+downloads/
+
+# Backup files
+*.bak
+*.original.yaml
+*.original.py
+
+# AWS configuration
+frontend/public/config.json
+
+# Other files
+venv/
+Thumbs.db
+
+# Temporary AWS testing files
+response.json
+test-event.json
+api-logging.json
+frontend/api-cors.json
+frontend/raw-cors.json
+frontend/frontend-policy.json

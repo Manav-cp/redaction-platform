@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadRawUploadsOnly",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::RAW_BUCKET_NAME/uploads/*"
+    },
+    {
+      "Sid": "WriteRedactedOutputsOnly",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
+      "Resource": "arn:aws:s3:::CLEAN_BUCKET_NAME/redacted/*"
+    },
+    {
+      "Sid": "UpdateDocumentStatus",
+      "Effect": "Allow",
+      "Action": ["dynamodb:UpdateItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:ACCOUNT_ID:table/TABLE_NAME"
+    },
+    {
+      "Sid": "DetectPII",
+      "Effect": "Allow",
+      "Action": ["comprehend:DetectPiiEntities"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:us-east-1:ACCOUNT_ID:log-group:/aws/lambda/*Processor*:*"
+    }
+  ]
+}
