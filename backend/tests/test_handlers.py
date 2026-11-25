@@ -127,6 +127,8 @@ def test_processor_marks_bad_file_failed(processor_module, monkeypatch):
     processor_module.lambda_handler(
         {"Records": [{"s3": {"bucket": {"name": "raw"}, "object": {"key": key}}}]}, None)
     assert table.items[("u1", "d2")]["status"] == "FAILED"
+
+
 def test_cross_user_delete_rejected(api):
     # User A creates a document
     r = api.lambda_handler(
