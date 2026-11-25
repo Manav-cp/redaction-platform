@@ -19,11 +19,14 @@ redaction-platform/
 │   └── requirements-dev.txt
 ├── frontend/                     # React + Vite single-page app (Cognito auth, drag-drop upload)
 ├── infra/template.yaml           # Whole stack as CloudFormation (SAM transform)
-├── scripts/deploy.py             # One-command deploy (Windows/macOS/Linux)
-├── scripts/destroy.py            # One-command teardown
-├── .github/workflows/deploy.yml  # CI/CD: lint → test → scan → deploy → smoke test
+├── scripts/cd_deploy.py          # Continuous Deployment engine (pre/post checks, zero delete)
+├── scripts/rollback.py           # Automated rollback engine
+├── scripts/deploy.py             # Full CloudFormation stack deployment
+├── scripts/destroy.py            # Teardown script
+├── .github/workflows/ci.yml      # CI: lint → test → cfn-lint → pip-audit → npm audit → build
+├── .github/workflows/cd.yml      # CD: controlled deployment with safety gates
 ├── iam-policies/                 # Least-privilege policies (for non-Learner-Lab accounts)
-├── docs/                         # ARCHITECTURE, SECURITY, SLA, COSTING
+├── docs/                         # ARCHITECTURE, CICD, SECURITY, SLA, COSTING
 └── samples/                      # Fake invoice PDF + résumé TXT full of test PII
 ```
 

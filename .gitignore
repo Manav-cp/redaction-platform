@@ -29,6 +29,21 @@ downloads/
 *.bak
 *.original.yaml
 *.original.py
+.cicd_backup/
+
+# Build artifacts & test reports
+*.zip
+*.log
+.coverage
+htmlcov/
+
+# GitHub Runner files
+.runner
+.credentials
+.credentials_rsaparams
+_diag/
+_work/
+actions-runner/
 
 # AWS configuration
 frontend/public/config.json

@@ -1,0 +1,68 @@
+name: Continuous Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Target deployment component"
+        required: true
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "frontend"
+          - "backend"
+      confirm_deployment:
+        description: "Safety gate: Type 'DEPLOY' to approve live execution"
+        required: true
+        default: "NO"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+jobs:
+  pre-flight-guard:
+    name: Deployment Approval & Safety Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Approval Input
+        run: |
+          if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+            echo "ERROR: Deployment was not confirmed with 'DEPLOY'. Aborting to protect live environment."
+            exit 1
+          fi
+          echo "Deployment safety gate passed for component: ${{ github.event.inputs.component }}"
+
+      - name: Verify Target Branch is Main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "ERROR: Deployments are strictly restricted to the main branch."
+            exit 1
+          fi
+          echo "Branch verification passed: ${{ github.ref }}"
+
+  deploy-self-hosted:
+    name: Controlled Deployment via Local AWS Credentials
+    needs: pre-flight-guard
+    runs-on: [self-hosted]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pre-Flight Environment Validation
+        run: |
+          python -c "import boto3, sys; sys.exit(0 if boto3.__version__ else 1)"
+          echo "Self-hosted runner execution environment verified."
+
+      - name: Execute Controlled Deployment Engine
+        run: |
+          python scripts/cd_deploy.py --component "${{ github.event.inputs.component }}"
+
+      - name: Rollback Instructions Notice
+        if: failure()
+        run: |
+          echo "::error::Deployment failed! Execute 'python scripts/rollback.py' locally to restore the previous healthy state."
